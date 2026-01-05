@@ -7,11 +7,15 @@
 )]
 #![deny(clippy::large_stack_frames)]
 
+use crate::alloc::string::ToString;
 use esp_hal::clock::CpuClock;
 use esp_hal::main;
 use esp_hal::time::{Duration, Instant};
 use esp_hal::timer::timg::TimerGroup;
 use rtt_target::rprintln;
+
+const WIFI_SSID: &str = env!("WIFI_SSID");
+const WIFI_PASSWORD: &str = env!("WIFI_PASSWORD");
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -44,10 +48,30 @@ fn main() -> ! {
         esp_hal::interrupt::software::SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     esp_rtos::start(timg0.timer0, sw_interrupt.software_interrupt0);
     let radio_init = esp_radio::init().expect("Failed to initialize Wi-Fi/BLE controller");
-    let (mut _wifi_controller, _interfaces) =
+    let (mut wifi_controller, _interfaces) =
         esp_radio::wifi::new(&radio_init, peripherals.WIFI, Default::default())
             .expect("Failed to initialize Wi-Fi controller");
 
+    let client_config = esp_radio::wifi::ModeConfig::Client(
+        esp_radio::wifi::ClientConfig::default()
+            .with_ssid(WIFI_SSID.to_string())
+            .with_password(WIFI_PASSWORD.to_string()),
+    );
+
+    wifi_controller.set_config(&client_config).unwrap();
+    rprintln!("Starting WiFi...");
+    wifi_controller.start().unwrap();
+
+    rprintln!("Connecting to WiFi...");
+    wifi_controller.connect().unwrap();
+
+    // Wait for connection
+    rprintln!("Waiting for connection...");
+    while !wifi_controller.is_connected().unwrap() {
+        let delay_start = Instant::now();
+        while delay_start.elapsed() < Duration::from_millis(100) {}
+    }
+    rprintln!("Connected!");
     loop {
         rprintln!("Hello world!");
         let delay_start = Instant::now();

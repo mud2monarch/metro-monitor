@@ -1,4 +1,13 @@
 fn main() {
+    // Load .env and pass to compiler
+    if let Ok(path) = dotenvy::dotenv() {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
+    for key in ["WIFI_SSID", "WIFI_PASSWORD"] {
+        if let Ok(val) = std::env::var(key) {
+            println!("cargo:rustc-env={key}={val}");
+        }
+    }
     linker_be_nice();
     println!("cargo:rustc-link-arg-tests=-Tembedded-test.x");
     // make sure linkall.x is the last linker script (otherwise might cause problems with flip-link)
